@@ -25,6 +25,8 @@ interface MessageProps {
 }
 
 function resolveMediaUri(uri: string): string {
+  // If already a full URL (R2), use as-is; otherwise resolve locally
+  if (uri.startsWith("http")) return uri;
   return "/" + uri.replace(/^\.\//, "");
 }
 
