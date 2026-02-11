@@ -1,0 +1,49 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+.claude/settings.local.json
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# data files (served via Supabase + R2 in production)
+jose-burgos.json
+jose-burgos.backup.json
+/media/
+/public/media
+
+# seed images
+jose*.jpg
+jose*.jpeg
+gentle-waves-*.jpg
+
+# project docs (not needed in deploy)
+BOOK_OF_LOVE_PLAN.md
