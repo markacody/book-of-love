@@ -8,78 +8,147 @@ A private, love-themed web application for Mark Cody and Jose Burgos to browse, 
 
 ## Current State
 
-This project is in the **pre-development / planning phase**. The repository currently contains:
-- `BOOK_OF_LOVE_PLAN.md` — comprehensive project specification (read this for full context)
-- `jose-burgos.json` — Facebook Messenger export (3,707 messages, 44K+ lines)
-- `media/` — 200+ media files (86 JPEG, 81 GIF, 22 WebP, 10 MP4)
-- `jose*.jpg` — seed images for future AI artwork generation
+The app is **functional locally and backed by Supabase**. Core UI and data layer are complete. Next step is Vercel deployment.
 
-No application code, package.json, or framework scaffolding exists yet.
+### What's Built
+- Next.js 14 + TypeScript + Tailwind CSS with love theme
+- Landing page (`/`), timeline (`/timeline`), search (`/search`)
+- 5 components: Message, MessageList, ReactionBadge, SearchBar, DatePicker
+- 3 API routes querying Supabase: paginated messages, search, day listing
+- Supabase PostgreSQL with 3 tables (messages, media, reactions), GIN index, RLS
+- 5,941 messages imported (Nov 18, 2023 – Nov 24, 2024)
+- 357 media references, 2,788 reactions
+- Merge script for combining Facebook Messenger exports
+- Media served locally via symlink (not yet on R2)
+- Git repo with 2 commits pushed to github.com/markacody/book-of-love
 
-## Planned Technology Stack
+### What's NOT Built Yet
+- Vercel deployment
+- Cloudflare R2 media storage (user has Cloudflare account)
+- Supabase Auth (2 users: Mark = admin, Jose = user)
+- Messages after Nov 2024 (E2EE export limitation — see Data Notes below)
+- Gallery page, video playback, "on this day" feature, AI features
+
+## Technology Stack
 
 - **Framework:** Next.js 14 + React + TypeScript
-- **Styling:** Tailwind CSS with custom love theme (black, flesh tone, rose, warm blush, steel accents)
-- **Database:** Supabase (PostgreSQL) with full-text search
-- **Auth:** Supabase Auth (email/password, 2 users only)
-- **Media Storage:** Cloudflare R2
-- **Deployment:** Vercel
+- **Styling:** Tailwind CSS with custom love theme
+- **Database:** Supabase (PostgreSQL) — project: nrmcmrndrijacsjvmzkr
+- **Auth:** Supabase Auth (not yet configured)
+- **Media Storage:** Cloudflare R2 (not yet configured, serving locally)
+- **Deployment:** Vercel (not yet deployed)
+- **Node.js:** v20.20.0 via nvm (required — `nvm use 20` before npm commands)
 
-## Development Commands (once scaffolded)
+## Development Commands
 
 ```bash
-npm install          # Install dependencies
-npm run dev          # Start dev server
-npm run build        # Production build
-npm run lint         # Lint
+nvm use 20             # Switch to Node 20 (required)
+npm install            # Install dependencies
+npm run dev            # Start dev server (http://localhost:3000)
+npm run build          # Production build
+npm run lint           # Lint
 ```
 
-## Planned Architecture
+## Scripts
 
-Next.js App Router structure under `book-of-love/` (or at repo root):
+```bash
+python3 scripts/merge-exports.py       # Merge new Facebook export into jose-burgos.json
+node scripts/import-messages.mjs       # Import jose-burgos.json into Supabase
+```
 
-- `app/` — pages: login (`page.tsx`), `timeline/`, `search/`, `gallery/`, `admin/`, and `api/` routes for messages, search, media
-- `components/` — Message, MessageList, DatePicker, SearchBar, MediaGallery, ReactionBadge
-- `lib/` — Supabase client (`supabase.ts`), R2 helpers (`r2.ts`), utilities
-- `scripts/` — `import-messages.ts` (parse Messenger JSON, seed Supabase), `upload-media.ts` (upload to R2)
+- `scripts/setup-db.sql` — SQL to create tables/indexes/RLS (run in Supabase SQL Editor)
 
-## Database Schema (4 tables)
+## Architecture
 
-- **messages** — id, sender_name, text, timestamp, type (text|media|link|placeholder), is_unsent
-- **media** — id, message_id (FK), uri (R2 URL), original_filename, file_type (jpeg|gif|webp|mp4)
-- **reactions** — id, message_id (FK), actor, reaction (emoji)
-- **users** — managed by Supabase Auth; roles: admin (Mark) | user (Jose)
+```
+app/
+├── layout.tsx              # Root layout with nav (Timeline | Search)
+├── page.tsx                # Landing page ("The Book of Love")
+├── globals.css             # Tailwind + theme + custom scrollbar
+├── timeline/page.tsx       # Chat timeline with day grouping
+├── search/page.tsx         # Search with date range filters
+└── api/messages/
+    ├── route.ts            # GET paginated messages (Supabase)
+    ├── search/route.ts     # GET search (ILIKE on Supabase)
+    └── days/route.ts       # GET day listing with counts
+components/
+├── Message.tsx             # Chat bubble (left/right aligned, media, reactions, links)
+├── MessageList.tsx         # Infinite-scroll day-grouped list
+├── ReactionBadge.tsx       # Emoji pill with actor name
+├── SearchBar.tsx           # Search input + date range pickers
+└── DatePicker.tsx          # Jump-to-date dropdown
+lib/
+├── messages.ts             # Local JSON loader (legacy, still used for merge script)
+└── supabase.ts             # Supabase client (public + service role)
+```
+
+## Database Schema (Supabase)
+
+- **messages** — id, sender_name, text, timestamp (bigint), type, is_unsent, share_link
+- **media** — id, message_id (FK), uri, original_filename, file_type
+- **reactions** — id, message_id (FK), actor, reaction
 
 Key indexes: messages.timestamp, GIN on messages.text, media.message_id, reactions.message_id.
+RLS enabled: authenticated users can SELECT all tables.
 
-## Data Format
+## Data Notes
 
-`jose-burgos.json` is a standard Facebook Messenger export. Messages have fields: `sender_name`, `timestamp_ms`, `content`, `type`, `photos`, `gifs`, `videos`, `reactions`, `is_unsent`. Media files are referenced by filename and stored in `media/`.
+### Facebook Messenger Export Encoding
+- Facebook exports encode UTF-8 as latin1 byte sequences (mojibake)
+- Files must be read with `latin1` encoding, then decoded back to UTF-8
+- The `decodeFBString()` function in lib/messages.ts and import script handles this
 
-## Environment Variables Required
+### Two Export Formats
+1. **Original format** (jose-burgos.json): camelCase fields (`senderName`, `timestamp`, `text`), ascending order, media as `{uri}` array, type field
+2. **Facebook download format** (message_1.json): snake_case fields (`sender_name`, `timestamp_ms`, `content`), descending order, separate `photos`/`gifs`/`share`/`sticker` fields
+
+The merge script (`scripts/merge-exports.py`) normalizes format 2 into format 1.
+
+### E2EE Limitation
+Messages after the E2EE migration (~Mar 2024) may not be exportable via Facebook's "Download Your Information" tool. The post-March 2024 data we have came from an earlier export. Messages from Nov 2024 onward are currently missing.
+
+### Merging New Exports
+1. Place new Jose conversation folder in `../friends/`
+2. Update `NEW_EXPORT` path in `scripts/merge-exports.py`
+3. Run `python3 scripts/merge-exports.py`
+4. Run `node scripts/import-messages.mjs` (truncate tables first if re-importing)
+
+## Environment Variables
 
 ```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_SUPABASE_URL=https://nrmcmrndrijacsjvmzkr.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
+# Future:
 R2_ACCOUNT_ID
 R2_ACCESS_KEY_ID
 R2_SECRET_ACCESS_KEY
 R2_BUCKET_NAME
 ```
 
-## Design Direction
+## Design
 
-- Typography: Bold sans-serif headings, Inter for messages
-- UI metaphors: timeline as "chapters," gallery as "photo album," search as "remembering together"
-- Reactions displayed as margin annotations
-- Must be mobile-responsive
-- The experience should feel intimate and special — this is a keepsake, not a utility
+- **Colors:** rose (#C45B6E), blush (#F2D1D1), cream (#FFFDD0), flesh (#E8C4A0), steel (#71797E)
+- **Font:** Inter via next/font
+- **Layout:** Max-width 3xl centered, sticky nav, sticky day headers
+- **Messages:** Right-aligned (Mark, rose bg), left-aligned (Jose, blush bg)
+- **Reactions:** Emoji pills below messages with actor first name
 
-## MVP Priority (P0)
+## Deployment Checklist (Next Session)
 
-Auth, chat timeline (grouped by day), keyword search, date picker, inline media, reaction display, responsive design, love theme styling.
+1. [ ] Deploy to Vercel (connect GitHub repo, set env vars)
+2. [ ] Set up Cloudflare R2 bucket and upload media
+3. [ ] Update media URIs in Supabase to point to R2
+4. [ ] Set up Supabase Auth (2 users)
+5. [ ] Add auth protection to pages
+6. [ ] Test production build end-to-end
 
 ## Post-MVP (P1/P2)
 
-Media gallery view, video playback, search highlighting, weekly export merging, "on this day" feature, AI summaries, AI-generated artwork from seed photos, stats dashboard.
+- Media gallery view
+- Video playback
+- Search highlighting in timeline context
+- "On this day" feature
+- AI summaries
+- AI-generated artwork from seed photos (jose*.jpg)
+- Stats dashboard
