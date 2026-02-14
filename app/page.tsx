@@ -19,13 +19,13 @@ export default function Home() {
 
         {/* Subtitle */}
         <p className="text-steel/70 text-sm leading-relaxed">
-          3,707 messages. 8 months. Every word, every photo, every reaction
+          5,941 messages. One year. Every word, every photo, every reaction
           &mdash; preserved here for us to revisit whenever we want.
         </p>
 
         {/* Enter button */}
         <Link
-          href="/timeline"
+          href="/login"
           className="inline-flex items-center gap-2 rounded-full bg-rose px-8 py-3 text-lg font-semibold text-white shadow-lg transition-all hover:bg-rose/90 hover:shadow-xl hover:scale-105 active:scale-100"
         >
           Enter
